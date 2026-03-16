@@ -110,3 +110,49 @@ imageio
 Optional (for smoothing filters):
 
 scipy
+```
+# Basic contour plot example
+```bash
+cd sim_directory
+python basic_contour.py
+```
+```python
+## Example 1 — Basic contour plot
+
+examples/basic_contour.py
+
+"""
+Basic contour plot example.
+
+Demonstrates how to visualize a scalar field on an R-Z grid.
+"""
+
+import numpy as np
+import matplotlib.pyplot as plt
+from simview.contour_plot import contour_plot
+
+# Create synthetic grid
+z = np.linspace(0, 10, 200)
+r = np.linspace(0, 5, 100)
+
+Z, R = np.meshgrid(z, r)
+
+# Example field
+field = np.exp(-((R - 2.5)**2 + (Z - 5)**2) / 2)
+
+fig, ax = contour_plot(
+    z,
+    r,
+    field,
+    title="Example Scalar Field",
+    cbar_label="Field amplitude",
+)
+
+plt.show()
+```
+other examples: \
+examples/basic_contour.py        – simple field visualization \
+examples/field_with_structure.py - plot field quantity with structure overlay \
+examples/batch_contours.py       – batch frame generation
+examples/create_animation.py     – build GIF animation
+
