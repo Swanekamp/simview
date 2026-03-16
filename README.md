@@ -100,18 +100,25 @@ Clone the repository:
 ```bash
 git clone https://github.com/swanekamp/simview.git
 cd simview
+```
+Install the package and make it editable:
+```bash
+pip install -e .
+```
 
-Dependencies:
+# Requirements:
 
 numpy
 matplotlib
 imageio
 
-Optional (for smoothing filters):
+### Optional (for smoothing filters):
 
 scipy
-```
-# Basic contour plot example
+
+# Examples
+
+## Basic contour plot example
 ```bash
 cd sim_directory
 python basic_contour.py
@@ -150,9 +157,9 @@ fig, ax = contour_plot(
 
 plt.show()
 ```
-other examples: \
-examples/basic_contour.py        – simple field visualization \
-examples/field_with_structure.py - plot field quantity with structure overlay \
-examples/batch_contours.py       – batch frame generation
-examples/create_animation.py     – build GIF animation
-
+## Other Examples: 
+`examples/basic_contour.py`        – simple field visualization \
+`examples/field_with_structure.py` - plot field quantity with structure overlay \
+`examples/batch_contours.py`       – batch frame generation \
+`examples/create_animation.py`     – build GIF animation \
+`examples/run_simview_chicago.py`  – advanced example demonstrating how to use simview to visualize Chicago simulation data and create animations (requires p4reader)
