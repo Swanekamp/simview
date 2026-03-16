@@ -1,0 +1,9 @@
+Metadata-Version: 2.4
+Name: simview
+Version: 0.1.0
+Summary: generic plotting functions for simulation data
+Author: Stephen Swanekamp
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: numpy
+Requires-Dist: matplotlib
