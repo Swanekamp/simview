@@ -1,17 +1,21 @@
 # simview
 
 simview is a lightweight visualization toolkit for
-2-D axisymmetric plasma and pulsed-power simulations.
+scalar and vector fields from plasma and pulsed-power simulations.
 
 It operates on NumPy arrays and can therefore be used
 with data from many simulation tools (Chicago, WarpX,
 LSP, VSim, ICEPIC, custom codes, etc.).
 
-While commonly used together with the companion
-reader library, simview itself is completely independent of the 
-file format.
+Although often used with axisymmetric R–Z simulations,
+simview can visualize any 2-D slice of simulation data,
+including slices extracted from 3-D simulations.
 
-It builds on top of the basic data reader and provides utilities for:
+While commonly used together with the companion reader library
+**[p4reader](https://github.com/swanekamp/p4reader)**, simview itself
+is completely independent of the file format.
+
+simview provides utilities for:
 
 - plotting field contours
 - visualizing diode structures
@@ -19,10 +23,34 @@ It builds on top of the basic data reader and provides utilities for:
 - building animations from those frames
 - applying smoothing filters to field data
 
-The goal is to make it easy to go from raw `.p4` files to
-publication-quality plots or diagnostic movies.
+The goal is to make it easy to go from raw simulation data
+to publication-quality plots or diagnostic movies. With an 
+appropriate simulation data reader, simview can be used with 
+simulation data format. 
 
 ---
+## Typical workflow with Chicago
+```
+Chicago / LSP simulation
+        │
+        ▼
+     .p4 files
+        │
+        ▼
+     p4reader
+        │
+        ▼
+   NumPy arrays
+        │
+        ▼
+     simview
+        │
+        ▼
+plots / animations / diagnostics
+```
+Data reader:
+- **p4reader** → https://github.com/swanekamp/p4reader  
+- For other simulation software, replace `p4reader` with the appropriate data reader.
 
 # Features
 
@@ -92,6 +120,15 @@ Reusable smoothing functions for simulation fields:
 Useful for reducing PIC noise in diagnostics.
 
 ---
+# Requirements:
+
+- numpy 
+- matplotlib 
+- imageio
+
+### Optional (for smoothing filters):
+
+- scipy
 
 # Installation
 
@@ -106,22 +143,11 @@ Install the package and make it editable:
 pip install -e .
 ```
 
-# Requirements:
-
-numpy
-matplotlib
-imageio
-
-### Optional (for smoothing filters):
-
-scipy
-
 # Examples
 
 ## Basic contour plot example
 ```bash
-cd sim_directory
-python basic_contour.py
+python examples/basic_contour.py
 ```
 ```python
 ## Example 1 — Basic contour plot
@@ -163,3 +189,13 @@ plt.show()
 `examples/batch_contours.py`       – batch frame generation \
 `examples/create_animation.py`     – build GIF animation \
 `examples/run_simview_chicago.py`  – advanced example demonstrating how to use simview to visualize Chicago simulation data and create animations (requires p4reader)
+
+## Project Ecosystem
+
+These libraries are designed to work together for analyzing and visualizing
+pulsed-power and plasma simulations.
+
+| Project | Description |
+|-------|-------------|
+| **p4reader** | Read Chicago / LSP `.p4` simulation output into NumPy arrays |
+| **simview** | Visualization utilities for simulation data |
