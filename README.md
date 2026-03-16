@@ -76,7 +76,7 @@ Jz_003ns.png \
 
 ### Animation tools
 
-Convert generated frames into GIF animations for quick visualization.
+Convert generated frames into GIF animations for quick visualization of simulation dynamics.
 
 ---
 
