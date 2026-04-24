@@ -199,6 +199,7 @@ def make_movie_set(
     vmax=None,
     struct=None,
     line_levels=None,
+    levels=None,
     cbar_ticks=None,
 ):
 
@@ -271,21 +272,50 @@ vector_specs = {
         line_levels=np.arange(-2500,251,250),
         cbar_ticks=np.arange(-2500, 501, 500),
     ),
+    "By": dict(
+        cmap="plasma",
+        cbar_label="By (A/cm)",
+        vmin = -20,
+        vmax =  20,
+        line_levels=np.arange(-20, 20 + 1,2),
+        cbar_ticks=np.arange(-20, 20 + 1, 5),
+        symmetric_cbar=True
+    ),
+    "Jz": dict(
+        cmap="plasma",
+        cbar_label="Jz (A/cm$^2$)",
+        vmin=-40,
+        vmax=0,
+        line_levels=np.arange(-40,1,5),
+        cbar_ticks=np.arange(-40, 1, 5),
+        symmetric_cbar=False
+    ),
 
     "Jb_mag": dict(
-        compute_fn=lambda obj: vector_mag(obj, field_name="J", smoothing_method='gaussian', scale=1e-3, kwargs={"sigma": 3}),
+        compute_fn=lambda obj: vector_mag(obj, field_name="J", smoothing_method=None, scale=1, kwargs={"sigma": 0.1}),
         cmap="plasma",
-        cbar_label="|J${_b}$| (kA/cm²)",
+        cbar_label="|J${_b}$| (A/cm²)",
         vmin=0,
-        vmax=20,
-        line_levels=np.arange(0, 21, 2),
-        cbar_ticks=np.arange(0, 21, 5),
+        vmax=40,
+        line_levels=np.arange(0, 41, 5),
+        cbar_ticks=np.arange(0, 41, 5),
+        symmetric_cbar=False,
     ),
 
     "Jp_mag": dict(
         compute_fn=lambda obj: vector_mag(obj, field_name="Jplasma", smoothing_method='gaussian', scale=1e-3, kwargs={"sigma": 3}),
         cmap="plasma",
         cbar_label="|J${_p}$| (kA/cm²)",
+        vmin=0,
+        vmax=50,
+        line_levels=np.arange(0, 51, 5),
+        cbar_ticks=np.arange(0, 51, 10),
+    ),
+
+    "E_mag": dict(
+        compute_fn=lambda obj: vector_mag(obj, field_name="E", smoothing_method='gaussian', scale=1e-3, kwargs={"sigma": 3}),
+        cmap="plasma",
+        cbar_label="|E| (kV/cm)",
         vmin=0,
         vmax=50,
         line_levels=np.arange(0, 51, 5),
@@ -348,10 +378,14 @@ def run_all(run_dir, plot="interactive"):
     vectors = fields["vectors"]
     scalars = fields["scalars"]
 
-    print("\nAvailable vector components (flds*.p4):")
-    for v in vectors:
-        print("   ", v)
+    print("\nAvailable vector components (raw + computed):")
 
+    all_vectors = sorted(set(vectors) | set(vector_specs.keys()))
+
+    for v in all_vectors:
+        tag = "(computed)" if v in vector_specs else ""
+        print(f"   {v:15s} {tag}")
+    
     print("\nAvailable scalar fields (sclr*.p4):")
     for s in scalars:
         print("   ", s)
@@ -398,7 +432,23 @@ def run_all(run_dir, plot="interactive"):
 
     flds_files = sorted_p4_files(run_dir, "flds*.p4")
     sclr_files = sorted_p4_files(run_dir, "sclr*.p4")
+    global_limits = {}
 
+    if selected_vectors:
+        for v in selected_vectors:
+
+            spec = vector_specs.get(v, {})
+
+            compute_fn = spec.get(
+                "compute_fn",
+                lambda obj, name=v: compute_named_field(obj, name)
+            )
+
+            print(f"Computing global limits for {v}...")
+
+            vmin, vmax = get_global_limits(flds_files, load_flds, compute_fn)
+
+            global_limits[v] = (vmin, vmax)
     # -----------------------------------
     # FLDS loop
     # -----------------------------------
@@ -420,8 +470,33 @@ def run_all(run_dir, plot="interactive"):
 
                 cmap = spec.get("cmap", "plasma")
                 cbar_label = spec.get("cbar_label", v)
+                # --- ALWAYS start fresh ---
                 vmin = spec.get("vmin")
                 vmax = spec.get("vmax")
+
+                symmetric = spec.get("symmetric", False)
+                user_defined = (vmin is not None and vmax is not None)
+
+                # --- If not user-defined, pull from global ---
+                if not user_defined:
+                    vmin, vmax = global_limits[v]
+
+                # --- Now apply logic ---
+                if symmetric:
+                    vmax = max(abs(vmin), abs(vmax))
+                    if not user_defined:
+                        vmax = 100 * np.ceil(vmax / 100)
+                    vmin = -vmax
+                else:
+                    if vmin >= 0:
+                        # purely positive field
+                        vmin = 0
+                    elif vmax <= 0:
+                        # purely negative field
+                        vmax = 0
+                    # else: mixed sign → leave as-is
+                    if not user_defined:
+                        vmax = 100 * np.ceil(vmax / 100)
                 cbar_ticks  = spec.get("cbar_ticks")
                 line_levels = spec.get("line_levels")
 
@@ -436,6 +511,7 @@ def run_all(run_dir, plot="interactive"):
                     vmin=vmin,
                     vmax=vmax,
                     cbar_ticks=cbar_ticks,
+                    levels = np.linspace(vmin, vmax, 201),
                     line_levels=line_levels,
                     struct=struct,
                 )
@@ -477,6 +553,8 @@ def run_all(run_dir, plot="interactive"):
                     vmax=vmax,
                     struct=struct,
                     line_levels=line_levels,
+                    xlabel='z (cm)',
+                    ylabel='x (cm)'
                 )
 
     # -----------------------------------
@@ -490,5 +568,5 @@ def run_all(run_dir, plot="interactive"):
         make_gif(outdir, outdir / f"{name}.gif", fps=2)
 
 if __name__ == "__main__":
-    PATH = "/mnt/c/Users/sswan/OneDrive/Documents/Runs/Chicago/Fisica/run38/"
+    PATH = "/home/swane/Runs/Xcimer/KJC/2D/run9"
     run_all(PATH)

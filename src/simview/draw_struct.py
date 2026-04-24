@@ -51,20 +51,16 @@ def draw_structure_rz(ax, struct, polarity="negative",
     else:
         bodies = struct.bodies
 
-    # Group bodies by radius
-    groups = struct.group_bodies_by_radius()
+    # Determine electrodes based on geometry
+    anode_id, cathode_ids = assign_electrodes_by_extent(struct, polarity=polarity)
 
     body_color = {}
 
-    for igroup, group in enumerate(groups):
-
-        if polarity == "negative":
-            color = "blue" if igroup % 2 == 0 else "red"
+    for ibody in range(len(bodies)):
+        if ibody == anode_id:
+            body_color[ibody] = "red"
         else:
-            color = "red" if igroup % 2 == 0 else "blue"
-
-        for body in group:
-            body_color[body] = color
+            body_color[ibody] = "blue"
 
     anode_segments = []
     cathode_segments = []
@@ -74,7 +70,6 @@ def draw_structure_rz(ax, struct, polarity="negative",
 
         # default if body not classified
         color = body_color.get(ibody, "blue")
-
 
         if fill:
 
