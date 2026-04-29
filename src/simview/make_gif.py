@@ -1,7 +1,10 @@
 # simview/animate.py
 
 from pathlib import Path
-import imageio.v2 as imageio
+try:
+    import imageio.v2 as imageio
+except:
+    import imageio
 
 
 def make_gif(frame_dir, output_name, fps=10, loop=0):
