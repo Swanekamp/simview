@@ -33,6 +33,8 @@ def contour_plot(
     figsize=(8, 6),
     logscale=False,
     label_contours=False,
+    xlabel='z (cm)',
+    ylabel='r (cm)',
 ):
     if F.shape == (len(z), len(r)):
         F_plot = F.T
@@ -110,8 +112,8 @@ def contour_plot(
             if label_contours:
                 ax.clabel(cs, cs.levels[::2], inline=True, fontsize=8)
 
-    ax.set_xlabel("z (cm)", fontsize=20)
-    ax.set_ylabel("r (cm)", fontsize=20)
+    ax.set_xlabel(xlabel, fontsize=20)
+    ax.set_ylabel(ylabel, fontsize=20)
 
     if title:
         ax.set_title(title, fontsize=24)
