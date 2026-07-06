@@ -1,0 +1,6 @@
+CLAUDE.md
+__pycache__
+*.egg-info
+.history
+*.png
+*.gif

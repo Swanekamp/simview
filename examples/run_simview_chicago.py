@@ -41,7 +41,7 @@ def load_sclr(path):
 
 
 # ----------------------------
-# Coordinate helper
+# Coordinate helpers
 # ----------------------------
 
 def get_rz(obj):
@@ -50,6 +50,46 @@ def get_rz(obj):
     if hasattr(obj, "x") and hasattr(obj, "z"):
         return obj.x, obj.z
     raise AttributeError("Could not find radial and axial coordinates on object")
+
+
+def get_x(obj):
+    if hasattr(obj, "x"):
+        return obj.x
+    if hasattr(obj, "r"):
+        return obj.r
+    if hasattr(obj, "z"):
+        return obj.z
+    raise AttributeError("Could not find 1D spatial coordinate on object")
+
+
+# ----------------------------
+# 1D vs 2D dispatch — set once at run start
+# ----------------------------
+
+def _coord_fn_2d(obj):
+    return get_rz(obj)
+
+
+def _coord_fn_1d(obj):
+    return get_x(obj), None
+
+
+_COORD_FN = _coord_fn_2d
+
+
+def set_dim(dim):
+    """Configure the coordinate dispatcher for the run. Call once at start."""
+    global _COORD_FN
+    if dim == 1:
+        _COORD_FN = _coord_fn_1d
+    elif dim == 2 or dim is None:
+        _COORD_FN = _coord_fn_2d
+    else:
+        raise ValueError(f"Unsupported dim={dim!r}; expected 1, 2, or None")
+
+
+def get_coords(obj):
+    return _COORD_FN(obj)
 
 
 def get_global_limits(files, load_fn, compute_fn):
@@ -70,7 +110,7 @@ def get_global_limits(files, load_fn, compute_fn):
 # ----------------------------
 
 def compute_Er(FLDS):
-    r, z = get_rz(FLDS)
+    r, z = get_coords(FLDS)
 
     if hasattr(FLDS, "Er"):
         F = FLDS.Er
@@ -83,7 +123,7 @@ def compute_Er(FLDS):
 
 
 def compute_Ez(FLDS):
-    r, z = get_rz(FLDS)
+    r, z = get_coords(FLDS)
 
     if hasattr(FLDS, "Ez"):
         F = FLDS.Ez
@@ -99,7 +139,7 @@ def compute_Iencl(FLDS, scale=1e-3, field_name="Jz", smoothing_method=None, kwar
     if kwargs is None:
         kwargs = {}
 
-    r, z = get_rz(FLDS)
+    r, z = get_coords(FLDS)
 
     if hasattr(FLDS, field_name):
         F = getattr(FLDS, field_name)
@@ -170,37 +210,47 @@ def vector_mag(FLDS, field_name="J", smoothing_method=None, scale=1.0, kwargs=No
     if kwargs is None:
         kwargs = {}
 
-    r, z = get_rz(FLDS)
+    r, z = get_coords(FLDS)
 
     if hasattr(FLDS, field_name):
         V = getattr(FLDS, field_name)
     else:
         raise AttributeError(f"Could not find {field_name} in FLDS object")
 
-    Vx = V[:, :, 0]
-    Vy = V[:, :, 1]
-    Vz = V[:, :, 2]
+    if V.ndim == 3:
+        Vx = V[:, :, 0]
+        Vy = V[:, :, 1]
+        Vz = V[:, :, 2]
+    elif V.ndim == 2 and V.shape[-1] == 3:
+        Vx = V[:, 0]
+        Vy = V[:, 1]
+        Vz = V[:, 2]
+    else:
+        raise ValueError(
+            f"{field_name} has unsupported shape {V.shape} for vector magnitude"
+        )
 
     F = np.sqrt(Vx**2 + Vy**2 + Vz**2)
 
+    axes = (0, 1) if F.ndim == 2 else (0,)
     if smoothing_method is not None:
         if smoothing_method == "gaussian":
             sigma = kwargs.get("sigma", 1.0)
-            F = smooth_field(F, method=smoothing_method, sigma=sigma, axis=0)
-            F = smooth_field(F, method=smoothing_method, sigma=sigma, axis=1)
+            for ax in axes:
+                F = smooth_field(F, method=smoothing_method, sigma=sigma, axis=ax)
         elif smoothing_method == "box":
             size = kwargs.get("size", 3)
-            F = smooth_field(F, method=smoothing_method, size=size, axis=0)
-            F = smooth_field(F, method=smoothing_method, size=size, axis=1)
+            for ax in axes:
+                F = smooth_field(F, method=smoothing_method, size=size, axis=ax)
         elif smoothing_method in ["three_point", "five_point"]:
-            F = smooth_field(F, method=smoothing_method, axis=0)
-            F = smooth_field(F, method=smoothing_method, axis=1)
+            for ax in axes:
+                F = smooth_field(F, method=smoothing_method, axis=ax)
 
     return r, z, F * scale
 
 
 def compute_rBtheta(SCLR, scale=1e-3):
-    r, z = get_rz(SCLR)
+    r, z = get_coords(SCLR)
 
     if hasattr(SCLR, "rBtheta"):
         F = SCLR.rBtheta
@@ -213,10 +263,49 @@ def compute_rBtheta(SCLR, scale=1e-3):
 
 
 def compute_named_field(obj, field_name, scale=1.0):
-    r, z = get_rz(obj)
+    r, z = get_coords(obj)
     if not hasattr(obj, field_name):
         raise AttributeError(f"{field_name} not found")
-    return r, z, getattr(obj, field_name) * scale
+
+    F = getattr(obj, field_name)
+
+    spatial_ndim = 1 if z is None else 2
+    if F.ndim != spatial_ndim:
+        raise ValueError(
+            f"{field_name} has shape {F.shape}, which is not a scalar field for "
+            f"{spatial_ndim}D geometry. Use a vector-magnitude compute_fn instead."
+        )
+
+    return r, z, F * scale
+
+
+# ----------------------------
+# 1D line-plot helper
+# ----------------------------
+
+def line_plot_1d(
+    x,
+    F,
+    title="",
+    ylabel="",
+    xlabel="x (cm)",
+    vmin=None,
+    vmax=None,
+    logscale=False,
+    figsize=(7, 3),
+):
+    fig, ax = plt.subplots(figsize=figsize)
+    ax.plot(x, F)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
+    if vmin is not None and vmax is not None:
+        ax.set_ylim(vmin, vmax)
+    if logscale:
+        ax.set_yscale("log")
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    return fig, ax
 
 
 # ----------------------------
@@ -255,45 +344,56 @@ def make_movie_set(
         vmin -= eps
         vmax += eps
 
-    if cbar_ticks is None:
-        if logscale:
-            cbar_ticks = np.logspace(
-                np.log10(vmin),
-                np.log10(vmax),
-                int(np.log10(vmax) - np.log10(vmin)) + 1,
-            )
-        else:
-            cbar_ticks = np.linspace(vmin, vmax, 9)
-
-    if levels is None:
-        if logscale:
-            levels = np.logspace(np.log10(vmin), np.log10(vmax), 200)
-        else:
-            levels = np.linspace(vmin, vmax, 200)
-
-    if line_levels is None:
-        line_levels = cbar_ticks
-
     t = getattr(frame, "time", 0.0)
 
-    fig, ax = contour_plot(
-        z,
-        r,
-        F,
-        title=title.format(time=t),
-        cbar_label=cbar_label,
-        levels=levels,
-        line_levels=line_levels,
-        cbar_ticks=cbar_ticks,
-        cmap=cmap,
-        vmin=vmin,
-        vmax=vmax,
-        logscale=logscale,
-        label_contours=label_contours,
-    )
+    if z is None:
+        fig, ax = line_plot_1d(
+            r,
+            F,
+            title=title.format(time=t),
+            ylabel=cbar_label,
+            vmin=vmin,
+            vmax=vmax,
+            logscale=logscale,
+        )
+    else:
+        if cbar_ticks is None:
+            if logscale:
+                cbar_ticks = np.logspace(
+                    np.log10(vmin),
+                    np.log10(vmax),
+                    int(np.log10(vmax) - np.log10(vmin)) + 1,
+                )
+            else:
+                cbar_ticks = np.linspace(vmin, vmax, 9)
 
-    if struct is not None:
-        draw_structure_rz(ax, struct, linewidth=1.5, foil_mid=1, fill=False)
+        if levels is None:
+            if logscale:
+                levels = np.logspace(np.log10(vmin), np.log10(vmax), 200)
+            else:
+                levels = np.linspace(vmin, vmax, 200)
+
+        if line_levels is None:
+            line_levels = cbar_ticks
+
+        fig, ax = contour_plot(
+            z,
+            r,
+            F,
+            title=title.format(time=t),
+            cbar_label=cbar_label,
+            levels=levels,
+            line_levels=line_levels,
+            cbar_ticks=cbar_ticks,
+            cmap=cmap,
+            vmin=vmin,
+            vmax=vmax,
+            logscale=logscale,
+            label_contours=label_contours,
+        )
+
+        if struct is not None:
+            draw_structure_rz(ax, struct, linewidth=1.5, foil_mid=1, fill=False)
 
     fname = movie_dir / f"{product_name}_{int(round(t)):04d}.png"
     fig.savefig(fname, dpi=150)
@@ -522,13 +622,15 @@ scalar_specs = {
 # Contours driver
 # ----------------------------
 
-def run_contours(run_dir, plot="interactive"):
+def run_contours(run_dir, plot="interactive", dim=None):
+    set_dim(dim)
+
     run_dir = Path(run_dir)
 
     struct_file = run_dir / "struct.p4"
     struct = None
-    if struct_file.exists():
-        STRUCT = P4Structure(struct_file)
+    if struct_file.exists() and dim != 1:
+        STRUCT = P4Structure(struct_file, dim=dim)
         struct = StructureRZ.from_p4structure(STRUCT)
 
     fields = inspect_p4_files(run_dir)
@@ -711,7 +813,9 @@ def run_contours(run_dir, plot="interactive"):
 # Lineouts driver
 # ----------------------------
 
-def run_lineouts(run_dir, plot="interactive"):
+def run_lineouts(run_dir, plot="interactive", dim=None):
+    set_dim(dim)
+
     from simview.lineout_plot import lineout_plot, plot_1d_line
 
     run_dir = Path(run_dir)
@@ -866,6 +970,7 @@ if __name__ == "__main__":
     mode = "both"
     PATH = "/home/swane/Runs/Syntek/Chicago/Fisica/run64"
     plot = "interactive"
+    dim = None
 
     for arg in sys.argv[1:]:
         if "=" not in arg:
@@ -879,14 +984,16 @@ if __name__ == "__main__":
             PATH = value
         elif key == "plot":
             plot = value.lower()
+        elif key == "dim":
+            dim = int(value)
 
     if mode == "contours":
-        run_contours(PATH, plot=plot)
+        run_contours(PATH, plot=plot, dim=dim)
     elif mode == "lineouts":
-        run_lineouts(PATH, plot=plot)
+        run_lineouts(PATH, plot=plot, dim=dim)
     elif mode == "both":
-        run_contours(PATH, plot=plot)
-        run_lineouts(PATH, plot=plot)
+        run_contours(PATH, plot=plot, dim=dim)
+        run_lineouts(PATH, plot=plot, dim=dim)
     else:
         raise ValueError(
             f"Unknown mode '{mode}'. Use: contours, lineouts, or both."

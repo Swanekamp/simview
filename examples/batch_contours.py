@@ -11,12 +11,24 @@ from simview.make_batch_contours import make_batch_contours
 
 
 # -------------------------------------------------
+# Synthetic data container
+# -------------------------------------------------
+
+class Frame:
+    def __init__(self, z, r, field, time):
+        self.z = z
+        self.r = r
+        self.field = field
+        self.time = time
+
+
+# -------------------------------------------------
 # Synthetic data loader
 # -------------------------------------------------
 
 def load_field(step):
     """
-    Return z, r, field for a given time step.
+    Return a Frame with z, r, field, and time for a given step.
     """
 
     z = np.linspace(0, 10, 200)
@@ -26,19 +38,19 @@ def load_field(step):
 
     field = np.sin(Z - 0.3 * step) * np.exp(-R)
 
-    return z, r, field
+    return Frame(z=z, r=r, field=field, time=step)
 
 
 # -------------------------------------------------
 # Field computation function
 # -------------------------------------------------
 
-def compute_field(z, r, field):
+def compute_field(data):
     """
     In a real workflow this could compute Jz, Ez, etc.
     Here we just return the synthetic field.
     """
-    return field
+    return data.r, data.z, data.field
 
 
 # -------------------------------------------------
