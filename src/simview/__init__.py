@@ -10,3 +10,4 @@ from .history_utils import collect_last_history_values
 from .get_plot_limits import get_plot_limits
 from .lineout_plot import lineout_plot, save_lineout, plot_1d_line
 from .lineout import extract_lineout, smooth_1d, current_density_from_enclosed_current
+from .particle_utils import eedf, diagnostics, density, kinetic_energy_eV
